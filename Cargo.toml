@@ -1,0 +1,11 @@
+[package]
+name = "gentest"
+version = "0.1.0"
+authors = ["Romain Ruetschi <romain@informal.systems>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+genawaiter = "0.99.1"
+rand = "0.7.3"
