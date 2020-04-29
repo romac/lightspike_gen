@@ -10,17 +10,20 @@ pub enum DemuxerError {
 
 // TODO: Introducer Demuxer structs holding state + references to components.
 
-fn run_scheduler(state: &State, input: SchedulerInput) -> Result<SchedulerOutput, DemuxerError> {
-    let scheduler = Gen::new(|co| scheduler::process(state, input, co));
+fn run_scheduler(
+    state: &mut State,
+    input: SchedulerInput,
+) -> Result<SchedulerOutput, DemuxerError> {
+    let scheduler = Gen::new(|co| scheduler::process(state.trusted_store_reader(), input, co));
 
-    let result = drain(scheduler, SchedulerResponse::Init, |req| {
+    let result = drain(scheduler, SchedulerResponse::Init, move |req| {
         handle_request(state, req)
     })?;
 
     result.map_err(|e| DemuxerError::Scheduler(e))
 }
 
-pub fn verify_height(state: &State, height: Height) -> Result<Vec<LightBlock>, DemuxerError> {
+pub fn verify_height(state: &mut State, height: Height) -> Result<Vec<LightBlock>, DemuxerError> {
     let input = SchedulerInput::VerifyHeight(height);
     let result = run_scheduler(state, input)?;
 
@@ -33,7 +36,10 @@ pub fn verify_height(state: &State, height: Height) -> Result<Vec<LightBlock>, D
 }
 
 // FIXME: This should be a method of a Demuxer struct, and state one of its fields
-pub fn verify_light_block(state: &State, lb: LightBlock) -> Result<Vec<LightBlock>, DemuxerError> {
+pub fn verify_light_block(
+    state: &mut State,
+    lb: LightBlock,
+) -> Result<Vec<LightBlock>, DemuxerError> {
     let input = SchedulerInput::VerifyLightBlock(lb);
     let result = run_scheduler(state, input)?;
 
@@ -46,7 +52,7 @@ pub fn verify_light_block(state: &State, lb: LightBlock) -> Result<Vec<LightBloc
 }
 
 // FIXME: This should be a method of a Demuxer struct, and state one of its fields
-fn validate_light_block(state: &State, lb: LightBlock) -> Result<LightBlock, DemuxerError> {
+fn validate_light_block(state: &mut State, lb: LightBlock) -> Result<LightBlock, DemuxerError> {
     let input = VerifierInput::VerifyLightBlock(lb);
     let result = verifier::process(input).map_err(|e| DemuxerError::Verifier(e))?;
     match result {
@@ -58,7 +64,7 @@ fn validate_light_block(state: &State, lb: LightBlock) -> Result<LightBlock, Dem
 }
 
 // FIXME: This should be a method of a Demuxer struct
-pub fn fetch_light_block(state: &State, height: Height) -> Result<LightBlock, DemuxerError> {
+pub fn fetch_light_block(state: &mut State, height: Height) -> Result<LightBlock, DemuxerError> {
     let input = IoInput::FetchLightBlock(height);
     let result = io::process(input).map_err(|e| DemuxerError::Io(e))?;
     match result {
@@ -70,7 +76,7 @@ pub fn fetch_light_block(state: &State, height: Height) -> Result<LightBlock, De
 }
 
 fn handle_request(
-    state: &State,
+    state: &mut State,
     request: SchedulerRequest,
 ) -> Result<SchedulerResponse, DemuxerError> {
     match request {

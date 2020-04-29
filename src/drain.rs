@@ -8,7 +8,7 @@ use genawaiter::{
 pub fn drain<I, O, E, F>(
     mut gen: Gen<O, I, F>,
     init: I,
-    handler: impl Fn(O) -> Result<I, E>,
+    mut handler: impl FnMut(O) -> Result<I, E>,
 ) -> Result<F::Output, E>
 where
     F: Future,

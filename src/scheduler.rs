@@ -32,33 +32,33 @@ pub enum SchedulerResponse {
 pub type SchedulerResult = Result<SchedulerOutput, SchedulerError>;
 
 pub async fn process(
-    state: &State,
+    store: TSReader,
     input: SchedulerInput,
     co: Co<SchedulerRequest, SchedulerResponse>,
 ) -> SchedulerResult {
     match input {
-        SchedulerInput::VerifyHeight(height) => verify_height(state, height, co).await,
-        SchedulerInput::VerifyLightBlock(lb) => verify_light_block(state, lb, co).await,
+        SchedulerInput::VerifyHeight(height) => verify_height(store, height, co).await,
+        SchedulerInput::VerifyLightBlock(lb) => verify_light_block(store, lb, co).await,
     }
 }
 
 pub async fn verify_height(
-    state: &State,
+    store: TSReader,
     height: Height,
     co: Co<SchedulerRequest, SchedulerResponse>,
 ) -> SchedulerResult {
-    if let Some(trusted_state) = state.get_trusted_state(height) {
+    if let Some(trusted_state) = store.get(height) {
         Ok(SchedulerOutput::TrustedStates(vec![trusted_state]))
     } else {
         let response = co.yield_(SchedulerRequest::GetLightBlock(height)).await;
         let lb = unwrap!(SchedulerResponse::LightBlock, response);
 
-        verify_light_block(state, lb, co).await
+        verify_light_block(store, lb, co).await
     }
 }
 
 pub async fn verify_light_block(
-    state: &State,
+    store: TSReader,
     lb: LightBlock,
     co: Co<SchedulerRequest, SchedulerResponse>,
 ) -> SchedulerResult {
@@ -66,14 +66,14 @@ pub async fn verify_light_block(
 
     let result = unwrap!(SchedulerResponse::Validated, response);
     match result {
-        Err(VerifierError::NotEnoughTrust) => do_bisection(state, lb, co).await,
+        Err(VerifierError::NotEnoughTrust) => do_bisection(store, lb, co).await,
         Err(err) => Err(SchedulerError::InvalidLightBlock(lb, err)),
         Ok(trusted_state) => Ok(SchedulerOutput::TrustedStates(vec![trusted_state])),
     }
 }
 
 pub async fn do_bisection(
-    state: &State,
+    store: TSReader,
     lb: LightBlock,
     co: Co<SchedulerRequest, SchedulerResponse>,
 ) -> SchedulerResult {
