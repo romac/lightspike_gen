@@ -1,6 +1,6 @@
 #![allow(unused_variables, unused_imports)]
 
-pub use gentest::prelude::*;
+pub use lightspike_gen::prelude::*;
 
 pub fn main() {
     let store = TrustedStore::new();
