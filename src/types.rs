@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, RwLock},
+};
+
 pub type Height = u64;
 
 #[derive(Copy, Clone, Debug)]
@@ -32,11 +37,6 @@ impl State {
         // self.fetched_store_writer.add(light_block);
     }
 }
-
-use std::{
-    collections::HashMap,
-    sync::{Arc, RwLock},
-};
 
 #[derive(Debug, Default)]
 pub struct TrustedStore {

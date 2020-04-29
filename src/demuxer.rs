@@ -51,7 +51,9 @@ impl Demuxer {
 
     pub fn validate_light_block(&mut self, lb: LightBlock) -> Result<LightBlock, DemuxerError> {
         let input = VerifierInput::VerifyLightBlock(lb);
-        let result = (self.verifier)(input).map_err(|e| DemuxerError::Verifier(e))?;
+
+        let handler = &self.verifier;
+        let result = handler(input).map_err(|e| DemuxerError::Verifier(e))?;
 
         match result {
             VerifierOutput::VerifiedLightBlock(lb) => {
@@ -63,7 +65,10 @@ impl Demuxer {
 
     pub fn fetch_light_block(&mut self, height: Height) -> Result<LightBlock, DemuxerError> {
         let input = IoInput::FetchLightBlock(height);
-        let result = (self.io)(input).map_err(|e| DemuxerError::Io(e))?;
+
+        let handler = &self.io;
+        let result = handler(input).map_err(|e| DemuxerError::Io(e))?;
+
         match result {
             IoOutput::FetchedLightBlock(lb) => {
                 self.state.add_fetched_light_block(lb.clone());
@@ -100,8 +105,8 @@ impl Demuxer {
         input: SchedulerInput,
     ) -> Result<SchedulerOutput, DemuxerError> {
         let scheduler = Gen::new(|co| {
-            let scheduler = &self.scheduler;
-            scheduler(self.state.trusted_store_reader(), input, co)
+            let handler = &self.scheduler;
+            handler(self.state.trusted_store_reader(), input, co)
         });
 
         let result = drain(scheduler, SchedulerResponse::Init, move |req| {

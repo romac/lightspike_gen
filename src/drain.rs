@@ -6,9 +6,9 @@ use genawaiter::{
 };
 
 pub fn drain<I, O, E, F>(
-    mut gen: Gen<O, I, F>,
-    init: I,
-    mut handler: impl FnMut(O) -> Result<I, E>,
+    mut gen: Gen<I, O, F>,
+    init: O,
+    mut handler: impl FnMut(I) -> Result<O, E>,
 ) -> Result<F::Output, E>
 where
     F: Future,
@@ -17,9 +17,7 @@ where
 
     loop {
         match gen.resume_with(response) {
-            GeneratorState::Yielded(request) => {
-                response = handler(request)?;
-            }
+            GeneratorState::Yielded(request) => response = handler(request)?,
             GeneratorState::Complete(result) => return Ok(result),
         }
     }
