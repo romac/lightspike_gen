@@ -1,0 +1,193 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `genawaiter` crate."><meta name="keywords" content="rust, rustlang, rust-lang, genawaiter"><title>genawaiter - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script><noscript><link rel="stylesheet" href="../noscript.css"></noscript><link rel="shortcut icon" href="../favicon.ico"><style type="text/css">#crate-search{background-image:url("../down-arrow.svg");}</style></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../genawaiter/index.html'><div class='logo-container'><img src='../rust-logo.png' alt='logo'></div></a><p class='location'>Crate genawaiter</p><div class="sidebar-elems"><a id='all-types' href='all.html'><p>See all genawaiter's items</p></a><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#macros">Macros</a></li><li><a href="#enums">Enums</a></li><li><a href="#traits">Traits</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'genawaiter', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form"><div class="search-container"><div><select id="crate-search"><option value="All crates">All crates</option></select><input class="search-input" name="search" disabled autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/genawaiter/lib.rs.html#1-336' title='goto source code'>[src]</a></span><span class='in-band'>Crate <a class="mod" href=''>genawaiter</a></span></h1><div class='docblock'><p>This crate implements generators for Rust. Generators are a feature common across many
+programming language. They let you yield a sequence of values from a function. A few
+common use cases are:</p>
+<ul>
+<li>Easily building iterators.</li>
+<li>Avoiding allocating a list for a function which returns multiple values.</li>
+</ul>
+<p>Rust has this feature too, but it is currently unstable (and thus nightly-only). But
+with this crate, you can use them on stable Rust!</p>
+<h1 id="features" class="section-header"><a href="#features">Features</a></h1>
+<p>This crate has these features:</p>
+<ul>
+<li><code>futures03</code> (disabled by default) – Implements <code>Stream</code> for all generator types.
+Adds a dependency on <code>futures-core</code>.</li>
+<li><code>proc_macro</code> (enabled by default) – Adds support for macros, and adds various
+compile-time dependencies.</li>
+</ul>
+<h1 id="choose-your-guarantees" class="section-header"><a href="#choose-your-guarantees">Choose your guarantees</a></h1>
+<p>This crate supplies three concrete implementations of generators:</p>
+<ol>
+<li>
+<p><a href="stack"><code>genawaiter::stack</code></a> – Allocation-free. You should prefer this when possible.</p>
+</li>
+<li>
+<p><a href="rc"><code>genawaiter::rc</code></a> – This allocates.</p>
+</li>
+<li>
+<p><a href="sync"><code>genawaiter::sync</code></a> – This allocates, and can be shared between threads.</p>
+</li>
+</ol>
+<p>Here are the differences in table form:</p>
+<table><thead><tr><th></th><th>[<code>stack::Gen</code>]</th><th>[<code>rc::Gen</code>]</th><th>[<code>sync::Gen</code>]</th></tr></thead><tbody>
+<tr><td>Allocations per generator</td><td>0</td><td>2</td><td>2</td></tr>
+<tr><td>Generator can be moved after created</td><td>no</td><td>yes</td><td>yes</td></tr>
+<tr><td>Thread-safe</td><td>no</td><td>no</td><td>yes</td></tr>
+</tbody></table>
+<h1 id="creating-a-generator" class="section-header"><a href="#creating-a-generator">Creating a generator</a></h1>
+<p>Once you've chosen how and whether to allocate (see previous section), you can create a
+generator using a macro from the <code>gen</code> family:</p>
+<ul>
+<li><a href="stack/macro.let_gen.html"><code>stack::let_gen!</code></a></li>
+<li><a href="rc/macro.gen.html"><code>rc::gen!</code></a></li>
+<li><a href="sync/macro.gen.html"><code>sync::gen!</code></a></li>
+</ul>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">count_to_ten</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+        <span class="macro">yield_</span><span class="macro">!</span>(<span class="ident">n</span>);
+    }
+});
+</pre></div>
+<p>To re-use logic between multiple generators, you can use a macro from the <code>producer</code>
+family, and then pass the producer to <code>Gen::new</code>.</p>
+<ul>
+<li>[<code>stack_producer!</code>] and <a href="stack/macro.let_gen_using.html"><code>let_gen_using!</code></a></li>
+<li>[<code>rc_producer!</code>] and <a href="rc::Gen::new"><code>Gen::new</code></a></li>
+<li>[<code>sync_producer!</code>] and <a href="sync::Gen::new"><code>Gen::new</code></a></li>
+</ul>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">count_producer</span> <span class="op">=</span> <span class="macro">producer</span><span class="macro">!</span>({
+    <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+        <span class="macro">yield_</span><span class="macro">!</span>(<span class="ident">n</span>);
+    }
+});
+
+<span class="kw">let</span> <span class="ident">count_to_ten</span> <span class="op">=</span> <span class="ident">Gen</span>::<span class="ident">new</span>(<span class="ident">count_producer</span>);
+</pre></div>
+<p>If neither of these offers enough control for you, you can always skip the macros and
+use the low-level API directly:</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">count_to_ten</span> <span class="op">=</span> <span class="ident">Gen</span>::<span class="ident">new</span>(<span class="op">|</span><span class="ident">co</span><span class="op">|</span> <span class="kw">async</span> <span class="kw">move</span> {
+    <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+        <span class="ident">co</span>.<span class="ident">yield_</span>(<span class="ident">n</span>).<span class="kw">await</span>;
+    }
+});
+</pre></div>
+<h1 id="a-tale-of-three-types" class="section-header"><a href="#a-tale-of-three-types">A tale of three types</a></h1>
+<p>A generator can control the flow of up to three types of data:</p>
+<ul>
+<li><strong>Yield</strong> – Each time a generator suspends execution, it can produce a value.</li>
+<li><strong>Resume</strong> – Each time a generator is resumed, a value can be passed in.</li>
+<li><strong>Completion</strong> – When a generator completes, it can produce one final value.</li>
+</ul>
+<h2 id="yield" class="section-header"><a href="#yield">Yield</a></h2>
+<p>Values can be yielded from the generator by calling <code>yield_</code>, and immediately awaiting
+the future it returns. You can get these values out of the generator in either of two
+ways:</p>
+<ul>
+<li>
+<p>Call <code>resume()</code> or <code>resume_with()</code>. The values will be returned in a
+<code>GeneratorState::Yielded</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generator</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="macro">yield_</span><span class="macro">!</span>(<span class="number">10</span>);
+});
+<span class="kw">let</span> <span class="ident">ten</span> <span class="op">=</span> <span class="ident">generator</span>.<span class="ident">resume</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">ten</span>, <span class="ident">GeneratorState</span>::<span class="ident">Yielded</span>(<span class="number">10</span>));</pre></div>
+</li>
+<li>
+<p>Treat it as an iterator. For this to work, both the resume and completion types must
+be <code>()</code> .</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="ident">generator</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="macro">yield_</span><span class="macro">!</span>(<span class="number">10</span>);
+});
+<span class="kw">let</span> <span class="ident">xs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">generator</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">xs</span>, [<span class="number">10</span>]);</pre></div>
+</li>
+</ul>
+<h2 id="resume" class="section-header"><a href="#resume">Resume</a></h2>
+<p>You can also send values back into the generator, by using <code>resume_with</code>. The generator
+receives them from the future returned by <code>yield_</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">printer</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">yield_</span><span class="macro">!</span>(());
+        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">string</span>);
+    }
+});
+<span class="ident">printer</span>.<span class="ident">resume_with</span>(<span class="string">&quot;hello&quot;</span>);
+<span class="ident">printer</span>.<span class="ident">resume_with</span>(<span class="string">&quot;world&quot;</span>);</pre></div>
+<h2 id="completion" class="section-header"><a href="#completion">Completion</a></h2>
+<p>A generator can produce one final value upon completion, by returning it from the
+function. The consumer will receive this value as a <code>GeneratorState::Complete</code>.</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generator</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="macro">yield_</span><span class="macro">!</span>(<span class="number">10</span>);
+    <span class="string">&quot;done&quot;</span>
+});
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generator</span>.<span class="ident">resume</span>(), <span class="ident">GeneratorState</span>::<span class="ident">Yielded</span>(<span class="number">10</span>));
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">generator</span>.<span class="ident">resume</span>(), <span class="ident">GeneratorState</span>::<span class="ident">Complete</span>(<span class="string">&quot;done&quot;</span>));</pre></div>
+<h1 id="async-generators" class="section-header"><a href="#async-generators">Async generators</a></h1>
+<p>If you await other futures inside the generator, it becomes an <em>async generator</em>. It
+does not makes sense to treat an async generator as an <code>Iterable</code>, since you cannot
+<code>await</code> an <code>Iterable</code>. Instead, you can treat it as a <code>Stream</code>. This requires opting in
+to the dependency on <code>futures</code> with the <code>futures03</code> feature.</p>
+<pre><code class="language-toml">[dependencies]
+genawaiter = { version = &quot;...&quot;, features = [&quot;futures03&quot;] }
+</code></pre>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">async_one</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> { <span class="number">1</span> }
+<span class="kw">async</span> <span class="kw">fn</span> <span class="ident">async_two</span>() <span class="op">-</span><span class="op">&gt;</span> <span class="ident">i32</span> { <span class="number">2</span> }
+
+<span class="kw">let</span> <span class="ident">gen</span> <span class="op">=</span> <span class="macro">gen</span><span class="macro">!</span>({
+    <span class="kw">let</span> <span class="ident">one</span> <span class="op">=</span> <span class="ident">async_one</span>().<span class="kw">await</span>;
+    <span class="macro">yield_</span><span class="macro">!</span>(<span class="ident">one</span>);
+    <span class="kw">let</span> <span class="ident">two</span> <span class="op">=</span> <span class="ident">async_two</span>().<span class="kw">await</span>;
+    <span class="macro">yield_</span><span class="macro">!</span>(<span class="ident">two</span>);
+});
+<span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">block_on_stream</span>(<span class="ident">gen</span>);
+<span class="kw">let</span> <span class="ident">items</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">collect</span>();
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">items</span>, [<span class="number">1</span>, <span class="number">2</span>]);</pre></div>
+<p>Async generators also provide a <code>async_resume</code> method for lower-level control. (This
+works even without the <code>futures03</code> feature.)</p>
+
+<div class="example-wrap"><pre class="rust rust-example-rendered">
+<span class="kw">match</span> <span class="ident">gen</span>.<span class="ident">async_resume</span>().<span class="kw">await</span> {
+    <span class="ident">GeneratorState</span>::<span class="ident">Yielded</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {}
+    <span class="ident">GeneratorState</span>::<span class="ident">Complete</span>(<span class="kw">_</span>) <span class="op">=</span><span class="op">&gt;</span> {}
+}</pre></div>
+<h1 id="backported-stdlib-types" class="section-header"><a href="#backported-stdlib-types">Backported stdlib types</a></h1>
+<p>This crate supplies <a href="trait.Generator.html"><code>Generator</code></a> and
+<a href="enum.GeneratorState.html"><code>GeneratorState</code></a>. They are copy/pasted from the stdlib (with
+stability attributes removed) so they can be used on stable Rust. If/when real
+generators are stabilized, hopefully they would be drop-in replacements. Javascript
+developers might recognize this as a polyfill.</p>
+<p>There is also a <a href="trait.Coroutine.html"><code>Coroutine</code></a> trait, which does not come from the
+stdlib. A <code>Coroutine</code> is a generalization of a <code>Generator</code>. A <code>Generator</code> constrains the
+resume argument type to <code>()</code>, but in a <code>Coroutine</code> it can be anything.</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table><tr class='module-item'><td><a class="mod" href="rc/index.html" title='genawaiter::rc mod'>rc</a></td><td class='docblock-short'><p>This module implements a generator which stores its state on the heap.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="stack/index.html" title='genawaiter::stack mod'>stack</a></td><td class='docblock-short'><p>This module implements a generator which doesn't allocate.</p>
+</td></tr><tr class='module-item'><td><a class="mod" href="sync/index.html" title='genawaiter::sync mod'>sync</a></td><td class='docblock-short'><p>This module implements a generator which can be shared between threads.</p>
+</td></tr></table><h2 id='macros' class='section-header'><a href="#macros">Macros</a></h2>
+<table><tr class='module-item'><td><a class="macro" href="macro.generator_mut.html" title='genawaiter::generator_mut macro'>generator_mut</a></td><td class='docblock-short'><span class="stab deprecated">Deprecated</span><p>Creates a generator on the stack.</p>
+</td></tr><tr class='module-item'><td><a class="macro" href="macro.rc_producer.html" title='genawaiter::rc_producer macro'>rc_producer</a></td><td class='docblock-short'><p>Creates a producer for use with [<code>rc::Gen</code>].</p>
+</td></tr><tr class='module-item'><td><a class="macro" href="macro.sync_producer.html" title='genawaiter::sync_producer macro'>sync_producer</a></td><td class='docblock-short'><p>Creates a producer for use with [<code>sync::Gen</code>].</p>
+</td></tr><tr class='module-item'><td><a class="macro" href="macro.unsafe_create_generator.html" title='genawaiter::unsafe_create_generator macro'>unsafe_create_generator</a></td><td class='docblock-short'><span class="stab deprecated">Deprecated</span><p>Creates a generator on the stack unsafely.</p>
+</td></tr><tr class='module-item'><td><a class="macro" href="macro.yield_.html" title='genawaiter::yield_ macro'>yield_</a></td><td class='docblock-short'><p>Yields a value from a generator.</p>
+</td></tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table><tr class='module-item'><td><a class="enum" href="enum.GeneratorState.html" title='genawaiter::GeneratorState enum'>GeneratorState</a></td><td class='docblock-short'><p>The result of a generator resumption.</p>
+</td></tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
+<table><tr class='module-item'><td><a class="trait" href="trait.Coroutine.html" title='genawaiter::Coroutine trait'>Coroutine</a></td><td class='docblock-short'><p>A trait implemented for coroutines.</p>
+</td></tr><tr class='module-item'><td><a class="trait" href="trait.Generator.html" title='genawaiter::Generator trait'>Generator</a></td><td class='docblock-short'><p>A trait implemented for generator types.</p>
+</td></tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../";window.currentCrate = "genawaiter";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

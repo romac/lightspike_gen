@@ -1,0 +1,1 @@
+initSidebarItems({"enum":[["GeneratorState","The result of a generator resumption."]],"struct":[["Gen","This is a generator which stores its state on the heap."]],"trait":[["Coroutine","A trait implemented for coroutines."]],"type":[["Co","This object lets you yield values from the generator by calling the `yield_` method."]]});

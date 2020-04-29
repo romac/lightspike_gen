@@ -1,0 +1,1 @@
+initSidebarItems({"attr":[["producer_fn","Turns a function into a producer, which can then be used to create a generator."]],"macro":[["gen","Creates a generator."]],"struct":[["Gen","This is a generator which stores its state on the heap."]],"type":[["Co","This object lets you yield values from the generator by calling the `yield_` method."]]});
