@@ -30,3 +30,13 @@ pub fn process(input: VerifierInput) -> VerifierResult {
         }
     }
 }
+
+pub type Verifier = Box<dyn Fn(VerifierInput) -> VerifierResult>;
+
+pub fn handler<F>(f: F) -> Verifier
+where
+    F: Fn(VerifierInput) -> VerifierResult + 'static,
+{
+    Box::new(f)
+}
+

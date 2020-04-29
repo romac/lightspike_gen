@@ -12,7 +12,11 @@ pub fn main() {
         trusted_store_writer,
     };
 
-    let mut demuxer = Demuxer::new(state);
+    let scheduler = scheduler::handler(scheduler::process);
+    let verifier = verifier::handler(verifier::process);
+    let io = io::handler(io::process);
+
+    let mut demuxer = Demuxer::new(state, scheduler, verifier, io);
 
     let result = demuxer.verify_height(42);
     dbg!(&result);

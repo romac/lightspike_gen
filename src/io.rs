@@ -21,3 +21,13 @@ pub fn process(input: IoInput) -> IoResult {
         IoInput::FetchLightBlock(height) => Ok(IoOutput::FetchedLightBlock(LightBlock)),
     }
 }
+
+pub type Io = Box<dyn Fn(IoInput) -> IoResult>;
+
+pub fn handler<F>(f: F) -> Io
+where
+    F: Fn(IoInput) -> IoResult + 'static,
+{
+    Box::new(f)
+}
+

@@ -10,11 +10,19 @@ pub enum DemuxerError {
 
 pub struct Demuxer {
     state: State,
+    scheduler: Scheduler,
+    verifier: Verifier,
+    io: Io,
 }
 
 impl Demuxer {
-    pub fn new(state: State) -> Self {
-        Self { state }
+    pub fn new(state: State, scheduler: Scheduler, verifier: Verifier, io: Io) -> Self {
+        Self {
+            state,
+            scheduler,
+            verifier,
+            io,
+        }
     }
 
     pub fn verify_height(&mut self, height: Height) -> Result<Vec<LightBlock>, DemuxerError> {
@@ -43,7 +51,7 @@ impl Demuxer {
 
     pub fn validate_light_block(&mut self, lb: LightBlock) -> Result<LightBlock, DemuxerError> {
         let input = VerifierInput::VerifyLightBlock(lb);
-        let result = verifier::process(input).map_err(|e| DemuxerError::Verifier(e))?;
+        let result = (self.verifier)(input).map_err(|e| DemuxerError::Verifier(e))?;
 
         match result {
             VerifierOutput::VerifiedLightBlock(lb) => {
@@ -55,7 +63,7 @@ impl Demuxer {
 
     pub fn fetch_light_block(&mut self, height: Height) -> Result<LightBlock, DemuxerError> {
         let input = IoInput::FetchLightBlock(height);
-        let result = io::process(input).map_err(|e| DemuxerError::Io(e))?;
+        let result = (self.io)(input).map_err(|e| DemuxerError::Io(e))?;
         match result {
             IoOutput::FetchedLightBlock(lb) => {
                 self.state.add_fetched_light_block(lb.clone());
@@ -91,8 +99,10 @@ impl Demuxer {
         &mut self,
         input: SchedulerInput,
     ) -> Result<SchedulerOutput, DemuxerError> {
-        let scheduler =
-            Gen::new(|co| scheduler::process(self.state.trusted_store_reader(), input, co));
+        let scheduler = Gen::new(|co| {
+            let scheduler = &self.scheduler;
+            scheduler(self.state.trusted_store_reader(), input, co)
+        });
 
         let result = drain(scheduler, SchedulerResponse::Init, move |req| {
             self.handle_request(req)

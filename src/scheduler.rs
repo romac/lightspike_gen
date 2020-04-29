@@ -1,6 +1,7 @@
 use crate::io::IoError;
 use crate::prelude::*;
 use crate::verifier::VerifierError;
+use std::{future::Future, pin::Pin};
 
 pub enum SchedulerInput {
     VerifyHeight(Height),
@@ -100,3 +101,20 @@ pub async fn do_bisection(
 
     Ok(SchedulerOutput::TrustedStates(trusted_states))
 }
+
+pub type Scheduler = Box<
+    dyn Fn(
+        TSReader,
+        SchedulerInput,
+        Co<SchedulerRequest, SchedulerResponse>,
+    ) -> Pin<Box<dyn Future<Output = SchedulerResult>>>,
+>;
+
+pub fn handler<F0, F>(f: F0) -> Scheduler
+where
+    F0: Fn(TSReader, SchedulerInput, Co<SchedulerRequest, SchedulerResponse>) -> F + 'static,
+    F: Future<Output = SchedulerResult> + 'static,
+{
+    Box::new(move |s, i, c| Box::pin(f(s, i, c)))
+}
+
