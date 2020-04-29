@@ -3,8 +3,9 @@
 use async_recursion::async_recursion;
 use genawaiter::{
     rc::{Co, Gen},
-    GeneratorState,
+    Coroutine, GeneratorState,
 };
+use std::future::Future;
 
 macro_rules! unwrap {
     ($enum:path, $expr:expr) => {{
@@ -16,11 +17,31 @@ macro_rules! unwrap {
     }};
 }
 
+pub fn drain<I, O, E, F>(
+    mut gen: Gen<O, I, F>,
+    init: I,
+    handler: impl Fn(O) -> Result<I, E>,
+) -> Result<F::Output, E>
+where
+    F: Future,
+{
+    let mut response = init;
+
+    loop {
+        match gen.resume_with(response) {
+            GeneratorState::Yielded(request) => {
+                response = handler(request)?;
+            }
+            GeneratorState::Complete(result) => return Ok(result),
+        }
+    }
+}
+
 pub type Height = u64;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct LightBlock;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct State;
 
 impl State {
@@ -39,28 +60,101 @@ impl State {
 
 pub mod demuxer {
     use super::*;
-    use super::{io::IoError, scheduler::SchedulerError, verifier::VerifierError};
+    use {io::*, scheduler::*, verifier::*};
 
-    pub enum DemuxerInput {}
-    pub enum DemuxerOutput {}
+    // pub enum DemuxerInput {
+    //     VerifyHeight(Height),
+    // }
+
+    // pub enum DemuxerOutput {
+    //     Trusted(Vec<LightBlock>),
+    // }
+
+    #[derive(Debug)]
     pub enum DemuxerError {
         Scheduler(SchedulerError),
         Verifier(VerifierError),
         Io(IoError),
     }
 
-    pub type DemuxerResult = Result<DemuxerOutput, DemuxerError>;
+    // FIXME: This should be a method of a Demuxer struct, and state one of its fields
+    pub fn verify_height(
+        state: &mut State,
+        height: Height,
+    ) -> Result<Vec<LightBlock>, DemuxerError> {
+        let input = SchedulerInput::VerifyHeight(height);
+        let scheduler = Gen::new(|co| scheduler::process(state, input, co));
 
-    pub async fn demuxer() {
-        let mut _state = State {};
+        let result = drain(scheduler, SchedulerResponse::Init, |req| {
+            handle_request(state, req)
+        })?;
 
-        loop {
-            // TODO
+        let result = result.map_err(|e| DemuxerError::Scheduler(e))?;
+        match result {
+            SchedulerOutput::TrustedStates(trusted_states) => Ok(trusted_states),
+        }
+    }
+
+    // FIXME: This should be a method of a Demuxer struct, and state one of its fields
+    pub fn verify_light_block(
+        state: &State,
+        lb: LightBlock,
+    ) -> Result<Vec<LightBlock>, DemuxerError> {
+        let input = SchedulerInput::VerifyLightBlock(lb);
+        let scheduler = Gen::new(|co| scheduler::process(state, input, co));
+
+        let result = drain(scheduler, SchedulerResponse::Init, |req| {
+            handle_request(state, req)
+        })?;
+
+        let result = result.map_err(|e| DemuxerError::Scheduler(e))?;
+        match result {
+            SchedulerOutput::TrustedStates(trusted_states) => Ok(trusted_states),
+        }
+    }
+
+    // FIXME: This should be a method of a Demuxer struct, and state one of its fields
+    fn validate_light_block(state: &State, lb: LightBlock) -> Result<LightBlock, DemuxerError> {
+        let input = VerifierInput::VerifyLightBlock(lb);
+        let result = verifier::process(input).map_err(|e| DemuxerError::Verifier(e))?;
+        match result {
+            VerifierOutput::VerifiedLightBlock(lb) => Ok(lb),
+        }
+    }
+
+    // FIXME: This should be a method of a Demuxer struct
+    pub fn fetch_light_block(height: Height) -> Result<LightBlock, DemuxerError> {
+        let input = IoInput::FetchLightBlock(height);
+        let result = io::process(input).map_err(|e| DemuxerError::Io(e))?;
+        match result {
+            IoOutput::FetchedLightBlock(lb) => Ok(lb),
+        }
+    }
+
+    fn handle_request(
+        state: &State,
+        request: SchedulerRequest,
+    ) -> Result<SchedulerResponse, DemuxerError> {
+        match request {
+            SchedulerRequest::GetLightBlock(height) => {
+                fetch_light_block(height).map(|lb| SchedulerResponse::LightBlock(lb))
+            }
+            SchedulerRequest::VerifyLightBlock(lb) => match verify_light_block(state, lb) {
+                Ok(ts) => Ok(SchedulerResponse::Verified(Ok(ts))),
+                Err(DemuxerError::Verifier(err)) => Ok(SchedulerResponse::Verified(Err(err))),
+                Err(err) => Err(err),
+            },
+            SchedulerRequest::ValidateLightBlock(lb) => match validate_light_block(state, lb) {
+                Ok(ts) => Ok(SchedulerResponse::Validated(Ok(ts))),
+                Err(DemuxerError::Verifier(err)) => Ok(SchedulerResponse::Validated(Err(err))),
+                Err(err) => Err(err),
+            },
         }
     }
 }
 
 pub mod scheduler {
+    use super::io::IoError;
     use super::verifier::VerifierError;
     use super::*;
 
@@ -73,6 +167,7 @@ pub mod scheduler {
         TrustedStates(Vec<LightBlock>),
     }
 
+    #[derive(Debug)]
     pub enum SchedulerError {
         InvalidLightBlock(LightBlock, VerifierError),
     }
@@ -84,6 +179,7 @@ pub mod scheduler {
     }
 
     pub enum SchedulerResponse {
+        Init,
         LightBlock(LightBlock),
         Validated(Result<LightBlock, VerifierError>),
         Verified(Result<Vec<LightBlock>, VerifierError>),
@@ -91,7 +187,7 @@ pub mod scheduler {
 
     pub type SchedulerResult = Result<SchedulerOutput, SchedulerError>;
 
-    pub async fn scheduler(
+    pub async fn process(
         state: &State,
         input: SchedulerInput,
         co: Co<SchedulerRequest, SchedulerResponse>,
@@ -173,6 +269,7 @@ pub mod verifier {
         VerifiedLightBlock(LightBlock),
     }
 
+    #[derive(Debug)]
     pub enum VerifierError {
         Invalid,
         NotEnoughTrust,
@@ -200,13 +297,14 @@ pub mod io {
     use super::*;
 
     pub enum IoInput {
-        FetchState,
+        FetchLightBlock(Height),
     }
 
     pub enum IoOutput {
-        FetchedState,
+        FetchedLightBlock(LightBlock),
     }
 
+    #[derive(Debug)]
     pub enum IoError {
         NotFound,
         Timeout,
@@ -216,9 +314,14 @@ pub mod io {
 
     pub fn process(input: IoInput) -> IoResult {
         match input {
-            IoInput::FetchState => Ok(IoOutput::FetchedState),
+            IoInput::FetchLightBlock(height) => Ok(IoOutput::FetchedLightBlock(LightBlock)),
         }
     }
 }
 
-pub fn main() {}
+pub fn main() {
+    let mut state = State;
+    let result = demuxer::verify_height(&mut state, 42);
+    dbg!(result);
+}
+
